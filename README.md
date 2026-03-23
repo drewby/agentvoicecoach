@@ -212,6 +212,26 @@ Look for the frontend URL in the output (e.g., `https://localhost:XXXXX`) and op
 | `POST` | `/api/coaching` | Evaluate transcript via OpenAI gpt-5.4 |
 | `POST` | `/api/coaching-session` | Configure VB agent + get token for coaching voice call |
 
+## 🤖 Built by Squad
+
+This project was built with [Squad](https://github.com/bradygaster/squad) — an AI team orchestration system that runs inside GitHub Copilot. Squad assembles a team of specialized AI agents, each with a distinct role, persistent memory, and defined areas of ownership. A coordinator routes work to agents in parallel, tracks decisions, and keeps the pipeline moving — much like a real engineering team, but completing a full hackathon build in a couple hours.
+
+The team for this project was cast from the *Inception* universe:
+
+| Agent | Role | Contributions |
+|-------|------|---------------|
+| 🎯 **Cobb** | Product Manager | Created the 6-phase, 32-item development plan. Designed the architecture mapping from Vocal Bridge patterns to our project structure. Made key technical decisions: coaching approach (Vocal Bridge for simulation, LLM for evaluation), frontend transcript accumulation, and `session_context` client action for scenario injection. |
+| 🏗️ **Arthur** | Project Lead | Set up the project structure with .NET Aspire AppHost orchestration. Configured the polyglot setup (Python backend + Node frontend) under a single Aspire umbrella. Coordinated cross-agent work and maintained the GitHub repository. |
+| 🎨 **Ariadne** | UI/UX Designer | Available for design consultation and UX review during development. |
+| ⚛️ **Eames** | Frontend Dev | Built the entire 3-screen single-page application (scenario picker → voice simulation → coaching results). Integrated LiveKit WebRTC for real-time voice, implemented the dark UI theme, built the Express HTTPS server with API proxy, and added the coaching voice call UI with a second LiveKit connection. |
+| 🔧 **Yusuf** | Backend Dev | Built all 5 FastAPI endpoints. Implemented dynamic Vocal Bridge agent reconfiguration per scenario (prompt, voice, greeting, client actions via CLI). Built the OpenAI gpt-5.4 evaluation pipeline with structured JSON scoring, the coaching session endpoint, and the VB token acquisition helpers. |
+| 🧪 **Saito** | Tester / QA | Available for test case design and quality assurance review. |
+| ⚙️ **Browning** | Build / Infra | Scaffolded Azure Bicep templates and GitHub Actions. Configured dev container with HTTPS certificates and python3-venv fix. Installed Vocal Bridge CLI, set up `.env` configuration, and wired environment variables through the Aspire AppHost. |
+| 📋 **Scribe** | Session Logger | Maintained the decision ledger, orchestration logs, and cross-agent context sharing throughout the session. |
+| 🔄 **Ralph** | Work Monitor | Tracked the work queue and kept the team pipeline moving. |
+
+> The Squad coordinator (powered by GitHub Copilot) ran parallel fan-outs — spawning multiple agents simultaneously to build the backend, frontend, infrastructure, and agent prompts in a single turn, then collecting results and chaining follow-up work automatically.
+
 ## License
 
 MIT
