@@ -12,3 +12,7 @@ Task: Setup project structure, Aspire, Github Repo (sync)
 - Project structured with Python backend and React/TS frontend under src/.
 - GitHub Action created for deploy.
 
+## Learnings
+- Project structured with Python backend and React/TS frontend under src/.
+- GitHub Action created for deploy.
+
