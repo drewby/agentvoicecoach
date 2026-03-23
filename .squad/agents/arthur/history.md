@@ -21,3 +21,4 @@ Task: Setup project structure, Aspire, Github Repo (sync)
 - **Architecture**: Decided to use .NET Aspire (`dotnet new aspire-apphost`) as the primary orchestrator for managing the Python backend and TS/React frontend.
 - **Key File Paths**: The orchestration project is in `src/VoiceProject.AppHost`, with configuration in `Program.cs`. The Python backend is at `src/backend` and the TS/React frontend at `src/frontend`.
 - **User Preferences**: Drew prefers using `aspire-apphost` for a unified development experience and deployment strategy across multiple varied tech stacks.
+- 2026-03-23T05:02:33Z: Added Aspire app host orchestration for polyglot setup.

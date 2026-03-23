@@ -5,3 +5,4 @@ Project: A Python backend and TypeScript frontend for a 2-hour hackathon, aiming
 Tech: Python, TypeScript, Aspire toolkit, OpenTelemetry, Azure App Insights, Azure CI/CD.
 
 ## Learnings
+- 2026-03-23T05:02:33Z: Reconciled Arthur's orchestration decisions and updated logs.
