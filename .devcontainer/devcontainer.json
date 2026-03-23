@@ -1,0 +1,30 @@
+{
+	"name": "CloudAuthor devcontainer",
+	"image": "mcr.microsoft.com/devcontainers/dotnet:10.0",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
+		"ghcr.io/devcontainers/features/azure-cli:1": {},
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "lts"
+		}
+	},
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
+ ],
+	"onCreateCommand": "curl -sSL https://aspire.dev/install.sh | bash && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /home/vscode/.local/bin && curl -LsSf https://astral.sh/uv/install.sh | sh",
+	"postCreateCommand": "echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> /home/vscode/.zshrc && npm install -g @github/copilot @bradygaster/squad-cli @vscode/vsce && uv tool install mcp-server-fetch && (cd /tmp && git clone https://github.com/swigerb/squad-pod.git && cd squad-pod && npm install && cd webview-ui && npm install && cd .. && npm run build && echo y | vsce package --allow-missing-repository --baseImagesUrl https://raw.githubusercontent.com/swigerb/squad-pod/master/ --baseContentUrl https://raw.githubusercontent.com/swigerb/squad-pod/master/ && code --install-extension squad-pod-0.1.0.vsix || true)",
+  "containerEnv": {
+    "SHELL": "/usr/bin/zsh",
+    "GH_PAGER": "cat",
+    "NODE_EXTRA_CA_CERTS": "/etc/ssl/certs/ca-certificates.crt"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "csharpfritz.squadui"
+      ]
+    }
+  },
+  "postStartCommand": "if [ -f tmp/localhost.crt ]; then sudo cp tmp/localhost.crt /usr/local/share/ca-certificates/localhost.crt && sudo update-ca-certificates; fi"
+}
