@@ -51,7 +51,7 @@ At the start of each session, you will receive a `session_context` action contai
 - **behavior**: How you should act, including pacing and emotional arc
 - **actor_strategy**: Specific procedural tests to run — situations to create, things to wait for
 
-**When you receive `session_context`, immediately begin the conversation in character.** Open with a natural customer opening line appropriate to your persona (e.g., a friendly greeting for an easy scenario, a frustrated statement for a hard scenario).
+**When you receive `session_context`, use it to understand your character and stay in character for the rest of the conversation.** Note: your opening line is already spoken automatically via the greeting configuration — do NOT repeat it. Simply wait for the trainee to respond, then continue in character.
 
 ### `end_simulation` (agent → app)
 
