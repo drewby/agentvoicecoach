@@ -12,10 +12,7 @@ VoiceCoach uses AI to make that training instant, repeatable, and self-serve. A 
 
 ## 🎬 Demo
 
-<!-- Replace with your video link -->
-[![VoiceCoach Demo](https://img.shields.io/badge/Video-Watch%20Demo-blue?style=for-the-badge&logo=youtube)](VIDEO_URL_HERE)
-
-> _Video coming soon_
+[![VoiceCoach Demo](https://img.youtube.com/vi/SrRxwKzfPmw/maxresdefault.jpg)](https://youtu.be/SrRxwKzfPmw)
 
 ## Architecture
 
