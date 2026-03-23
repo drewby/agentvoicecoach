@@ -1,0 +1,23 @@
+[
+  {
+    "name": "send_evaluation",
+    "description": "Send structured coaching evaluation JSON to the user's screen",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "send_document",
+    "description": "Send text summaries or detailed feedback to the user's screen",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "end_conversation",
+    "description": "End the coaching session after delivering feedback",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "session_context",
+    "description": "Receive the simulation transcript and scenario context for evaluation",
+    "direction": "app_to_agent",
+    "behavior": "respond"
+  }
+]

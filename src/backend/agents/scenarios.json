@@ -1,0 +1,56 @@
+[
+  {
+    "id": "scenario-1",
+    "title": "Simple Product Inquiry",
+    "difficulty": "Easy",
+    "description": "Help a friendly customer find the right gift",
+    "customer_name": "Sarah",
+    "persona": {
+      "background": "A friendly first-time customer browsing for a gift for her partner who recently started a home coffee hobby.",
+      "personality": "Polite, patient, slightly indecisive.",
+      "emotional_state": "Neutral to positive. Easily satisfied by a confident, knowledgeable answer."
+    },
+    "goal": "Get a product recommendation for the BrewMaster Coffee Maker, ask about filter compatibility, and confirm shipping costs.",
+    "behavior": "Polite, patient, slightly indecisive. Will ask 2–3 clarifying questions. Easily satisfied by a confident, knowledgeable answer.",
+    "actor_strategy": "Sarah will not volunteer what she's looking for immediately — she'll say 'a gift for my partner' and wait to see if the rep asks a clarifying question per §4.1 before recommending. She'll also mention her order will be around $65 to see if the rep proactively mentions the $75 free shipping threshold.",
+    "manual_sections_tested": ["§1.1", "§1.3", "§4.1", "§4.2"],
+    "opening_line": "Hi! I'm looking for a gift for my partner.",
+    "products_involved": ["NF-CF-1100"]
+  },
+  {
+    "id": "scenario-2",
+    "title": "Multi-Issue Order Problem",
+    "difficulty": "Medium",
+    "description": "Handle a returning customer with multiple order issues",
+    "customer_name": "David",
+    "persona": {
+      "background": "A returning customer and loyalty member. He placed an order three days ago. Not angry but mildly frustrated because multiple things went wrong.",
+      "personality": "Business-like, expects efficiency.",
+      "emotional_state": "Mildly frustrated but reasonable. Will remain calm if handled efficiently."
+    },
+    "goal": "He ordered the QuietClean Vacuum and CloudSoft Towel Set. The vacuum arrived with a cracked handle, and the towels were the wrong color (received Sand, ordered Ocean). He wants the vacuum replaced and the towels exchanged.",
+    "behavior": "Business-like, expects efficiency. Will reveal issues one at a time (vacuum first, then towels). Will ask about loyalty points.",
+    "actor_strategy": "David will offer his order number unprompted, but will only mention the vacuum issue first. He'll wait to see if the rep asks 'Is there anything else?' before revealing the towel problem. This tests whether the rep checks for additional issues. He'll also ask about loyalty points to test §4.2 knowledge.",
+    "manual_sections_tested": ["§1.2", "§2.1", "§2.2", "§2.3", "§4.2", "§1.3"],
+    "opening_line": "Hi, I got my order a couple days ago and there are some problems. My order number is NF-20260318.",
+    "products_involved": ["NF-VC-3300", "NF-TW-7500"]
+  },
+  {
+    "id": "scenario-3",
+    "title": "Angry Customer Escalation",
+    "difficulty": "Hard",
+    "description": "De-escalate a frustrated customer demanding a refund on an out-of-window purchase",
+    "customer_name": "Karen",
+    "persona": {
+      "background": "A very frustrated customer. She purchased the ProEdge Knife Set five weeks ago as a wedding gift. The recipient found a chipped blade on first use. Karen is past the 30-day return window.",
+      "personality": "Starts annoyed, escalates to angry when told a refund isn't possible. Will interrupt, repeat complaints, question product quality, and threaten bad reviews.",
+      "emotional_state": "Frustrated to angry. Can be de-escalated by the HEAT framework (§3.1) and a proactive goodwill gesture (§3.2)."
+    },
+    "goal": "She wants a full refund. The rep cannot offer a refund (past return window, per §2.1) but can offer a warranty replacement (per §2.2). Karen will escalate emotionally before accepting or demanding a manager.",
+    "behavior": "Starts annoyed, escalates to angry when told a refund isn't possible. Will interrupt, repeat complaints, question product quality, and threaten bad reviews. Can be de-escalated by the HEAT framework (§3.1) and a proactive goodwill gesture (§3.2).",
+    "actor_strategy": "Karen will test several prohibited actions: she'll push for a refund (§5.1 says reps must not promise one), she'll say 'maybe I should talk to a manager' once to see if the rep transfers prematurely (§3.3 says a single mention is not sufficient — attempt resolution first). She'll also wait to see if the rep offers a goodwill gesture proactively or only after being pressured.",
+    "manual_sections_tested": ["§1.2", "§2.1", "§2.2", "§3.1", "§3.2", "§3.3", "§5.1"],
+    "opening_line": "Yeah, hi. I need to talk to someone about a knife set I bought. The ProEdge set? One of the blades came chipped right out of the box. This was a wedding gift. Extremely embarrassing.",
+    "products_involved": ["NF-CK-4500"]
+  }
+]

@@ -3,10 +3,807 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Voice Project</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🎙</text></svg>">
+  <title>VoiceCoach — AI Training Simulator</title>
+  <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #0f1023;
+      --bg-secondary: #1a1b2e;
+      --bg-card: #232544;
+      --bg-card-hover: #2c2f5a;
+      --text-primary: #f0f0f5;
+      --text-secondary: #9a9bc0;
+      --accent: #6c63ff;
+      --accent-hover: #5a52e0;
+      --green: #22c55e;
+      --green-bg: rgba(34, 197, 94, 0.15);
+      --amber: #f59e0b;
+      --amber-bg: rgba(245, 158, 11, 0.15);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.15);
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.3);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* --- Layout --- */
+    .app-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6c63ff 0%, #48bfe3 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header p {
+      color: var(--text-secondary);
+      margin-top: 0.4rem;
+      font-size: 0.95rem;
+    }
+
+    /* --- Screen visibility --- */
+    .screen { display: none; }
+    .screen.active { display: block; animation: fadeIn 0.3s ease; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ============== SCREEN 1: Scenario Picker ============== */
+    .scenarios-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .scenario-card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      border: 1px solid transparent;
+    }
+    .scenario-card:hover {
+      background: var(--bg-card-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+      border-color: var(--accent);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.7rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.75rem;
+    }
+    .badge-easy   { background: var(--green-bg); color: var(--green); }
+    .badge-medium { background: var(--amber-bg); color: var(--amber); }
+    .badge-hard   { background: var(--red-bg);   color: var(--red); }
+
+    .scenario-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 0.4rem;
+    }
+    .scenario-card p {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .loading-msg {
+      text-align: center;
+      color: var(--text-secondary);
+      padding: 3rem 0;
+    }
+
+    /* ============== SCREEN 2: Live Simulation ============== */
+    .sim-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .sim-status {
+      text-align: center;
+    }
+    .sim-status h2 {
+      font-size: 1.3rem;
+      margin-bottom: 0.3rem;
+    }
+    .sim-status .status-text {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .status-dot.connecting { background: var(--amber); animation: pulse 1s infinite; }
+    .status-dot.connected  { background: var(--green); }
+    .status-dot.error      { background: var(--red); }
+
+    /* Audio visualizer */
+    .visualizer {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(108,99,255,0.25) 0%, transparent 70%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .visualizer.active .viz-ring {
+      animation: vizPulse 1.5s ease-in-out infinite;
+    }
+    .viz-ring {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 3px solid var(--accent);
+      opacity: 0.6;
+    }
+    @keyframes vizPulse {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50%      { transform: scale(1.25); opacity: 1; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.4; }
+    }
+
+    /* Transcript */
+    .transcript-box {
+      width: 100%;
+      max-width: 700px;
+      max-height: 350px;
+      overflow-y: auto;
+      background: var(--bg-secondary);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      font-size: 0.9rem;
+    }
+    .transcript-box:empty::before {
+      content: "Conversation will appear here...";
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+    .transcript-line {
+      margin-bottom: 0.5rem;
+      line-height: 1.45;
+    }
+    .transcript-line .role {
+      font-weight: 600;
+      margin-right: 0.4rem;
+    }
+    .transcript-line .role.agent { color: var(--accent); }
+    .transcript-line .role.user  { color: var(--green); }
+
+    .sim-actions {
+      display: flex;
+      gap: 1rem;
+    }
+
+    /* ============== SCREEN 3: Coaching Results ============== */
+    .coaching-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .overall-score-card {
+      text-align: center;
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 2rem;
+    }
+    .overall-score-card .big-score {
+      font-size: 4rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .overall-score-card .score-label {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-top: 0.3rem;
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .score-card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      border-left: 4px solid var(--text-secondary);
+    }
+    .score-card.score-green  { border-left-color: var(--green); }
+    .score-card.score-amber  { border-left-color: var(--amber); }
+    .score-card.score-red    { border-left-color: var(--red); }
+
+    .score-card .sc-score {
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+    .score-green .sc-score  { color: var(--green); }
+    .score-amber .sc-score  { color: var(--amber); }
+    .score-red .sc-score    { color: var(--red); }
+
+    .score-card .sc-cat {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-top: 0.2rem;
+    }
+    .score-card .sc-section {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    .score-card .sc-summary {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-top: 0.5rem;
+    }
+
+    .improvements-card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+    .improvements-card h3 {
+      font-size: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .improvements-card ul {
+      list-style: none;
+      padding: 0;
+    }
+    .improvements-card li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .improvements-card li::before {
+      content: "→ ";
+      color: var(--amber);
+      font-weight: 600;
+    }
+
+    .coaching-dialogue {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .coaching-dialogue summary {
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      transition: background 0.2s;
+    }
+    .coaching-dialogue summary:hover {
+      background: var(--bg-card-hover);
+    }
+    .coaching-dialogue .dialogue-content {
+      padding: 0 1.5rem 1.25rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+
+    /* --- Buttons --- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+    .btn-danger {
+      background: rgba(239,68,68,0.15);
+      color: var(--red);
+    }
+    .btn-danger:hover:not(:disabled) { background: rgba(239,68,68,0.25); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.05); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .app-container { padding: 1rem; }
+      header h1 { font-size: 1.5rem; }
+      .overall-score-card .big-score { font-size: 3rem; }
+    }
+  </style>
 </head>
 <body>
-  <h1>Voice Project</h1>
-  <p>Frontend is running.</p>
+  <div class="app-container">
+    <header>
+      <h1>🎙 VoiceCoach</h1>
+      <p>AI-Powered Customer Service Training Simulator</p>
+    </header>
+
+    <!-- =================== SCREEN 1: Scenario Picker =================== -->
+    <div id="screen-picker" class="screen active">
+      <div id="scenarios-container" class="scenarios-grid">
+        <div class="loading-msg">Loading scenarios…</div>
+      </div>
+    </div>
+
+    <!-- =================== SCREEN 2: Live Simulation =================== -->
+    <div id="screen-sim" class="screen">
+      <div class="sim-layout">
+        <div class="sim-status">
+          <h2 id="sim-title">Simulation</h2>
+          <div class="status-text">
+            <span id="status-dot" class="status-dot connecting"></span>
+            <span id="status-text">Initializing…</span>
+          </div>
+        </div>
+
+        <div id="visualizer" class="visualizer">
+          <div class="viz-ring"></div>
+        </div>
+
+        <div id="transcript" class="transcript-box"></div>
+
+        <div class="sim-actions">
+          <button id="btn-end-sim" class="btn btn-danger" disabled>End Simulation</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================== SCREEN 3: Coaching Results =================== -->
+    <div id="screen-coaching" class="screen">
+      <div class="coaching-layout">
+        <div class="overall-score-card">
+          <div id="overall-score" class="big-score">—</div>
+          <div class="score-label">Overall Score</div>
+        </div>
+
+        <div id="score-grid" class="score-grid"></div>
+
+        <div id="improvements" class="improvements-card" style="display:none;">
+          <h3>🎯 Key Improvement Areas</h3>
+          <ul id="improvements-list"></ul>
+        </div>
+
+        <details id="coaching-dialogue" class="coaching-dialogue" style="display:none;">
+          <summary>📝 Coach's Notes</summary>
+          <div id="dialogue-content" class="dialogue-content"></div>
+        </details>
+
+        <div style="text-align:center; margin-top:1rem;">
+          <button id="btn-retry" class="btn btn-primary">Try Another Scenario</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    "use strict";
+
+    // -----------------------------------------------------------------------
+    // State
+    // -----------------------------------------------------------------------
+    let currentScenario = null;
+    let room = null;
+    let transcriptEntries = [];
+
+    // -----------------------------------------------------------------------
+    // DOM refs
+    // -----------------------------------------------------------------------
+    const screenPicker   = document.getElementById("screen-picker");
+    const screenSim      = document.getElementById("screen-sim");
+    const screenCoaching = document.getElementById("screen-coaching");
+    const scenariosContainer = document.getElementById("scenarios-container");
+    const simTitle       = document.getElementById("sim-title");
+    const statusDot      = document.getElementById("status-dot");
+    const statusText     = document.getElementById("status-text");
+    const visualizer     = document.getElementById("visualizer");
+    const transcriptBox  = document.getElementById("transcript");
+    const btnEndSim      = document.getElementById("btn-end-sim");
+    const overallScore   = document.getElementById("overall-score");
+    const scoreGrid      = document.getElementById("score-grid");
+    const improvements   = document.getElementById("improvements");
+    const improvementsList = document.getElementById("improvements-list");
+    const coachingDialogue = document.getElementById("coaching-dialogue");
+    const dialogueContent  = document.getElementById("dialogue-content");
+    const btnRetry       = document.getElementById("btn-retry");
+
+    // -----------------------------------------------------------------------
+    // Screen management
+    // -----------------------------------------------------------------------
+    function showScreen(screenEl) {
+      [screenPicker, screenSim, screenCoaching].forEach(s => s.classList.remove("active"));
+      screenEl.classList.add("active");
+    }
+
+    // -----------------------------------------------------------------------
+    // Status helpers
+    // -----------------------------------------------------------------------
+    function setStatus(msg, state) {
+      statusText.textContent = msg;
+      statusDot.className = "status-dot " + (state || "connecting");
+    }
+
+    // -----------------------------------------------------------------------
+    // 1. Scenario Picker
+    // -----------------------------------------------------------------------
+    async function loadScenarios() {
+      try {
+        const resp = await fetch("/api/scenarios");
+        if (!resp.ok) throw new Error("Failed to load scenarios");
+        const scenarios = await resp.json();
+        renderScenarios(scenarios);
+      } catch (err) {
+        scenariosContainer.innerHTML =
+          '<div class="loading-msg">⚠️ Could not load scenarios. Is the backend running?</div>';
+        console.error("[VC] Failed to load scenarios:", err);
+      }
+    }
+
+    function renderScenarios(scenarios) {
+      scenariosContainer.innerHTML = "";
+      scenarios.forEach(s => {
+        const card = document.createElement("div");
+        card.className = "scenario-card";
+        const diff = s.difficulty.toLowerCase();
+        const badgeClass = diff === "easy" ? "badge-easy"
+                         : diff === "medium" ? "badge-medium"
+                         : "badge-hard";
+        card.innerHTML = `
+          <span class="badge ${badgeClass}">${s.difficulty}</span>
+          <h3>${escapeHtml(s.title)}</h3>
+          <p>${escapeHtml(s.description)}</p>
+        `;
+        card.addEventListener("click", () => startSimulation(s));
+        scenariosContainer.appendChild(card);
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // 2. Live Simulation
+    // -----------------------------------------------------------------------
+    async function startSimulation(scenario) {
+      currentScenario = scenario;
+      transcriptEntries = [];
+      transcriptBox.innerHTML = "";
+      showScreen(screenSim);
+      simTitle.textContent = scenario.title;
+      setStatus("Requesting session…", "connecting");
+      btnEndSim.disabled = true;
+
+      try {
+        // Get LiveKit token from backend
+        const resp = await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scenario_id: scenario.id,
+            participant_name: "Trainee"
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || "Session request failed");
+        }
+        const data = await resp.json();
+        if (!data.livekit_url || !data.token) {
+          throw new Error("Missing livekit_url or token in response");
+        }
+
+        await connectLiveKit(data.livekit_url, data.token, scenario);
+      } catch (err) {
+        console.error("[VC] Simulation start failed:", err);
+        setStatus("Error: " + err.message, "error");
+        btnEndSim.disabled = false;
+        btnEndSim.textContent = "Back to Scenarios";
+        btnEndSim.onclick = () => {
+          btnEndSim.textContent = "End Simulation";
+          btnEndSim.onclick = null;
+          showScreen(screenPicker);
+        };
+      }
+    }
+
+    async function connectLiveKit(url, token, scenario) {
+      if (typeof LivekitClient === "undefined") {
+        setStatus("Error: LiveKit SDK not loaded", "error");
+        return;
+      }
+
+      const { Room, RoomEvent, Track, ConnectionState } = LivekitClient;
+      setStatus("Connecting…", "connecting");
+
+      room = new Room({ adaptiveStream: true, dynacast: true });
+
+      // --- Event handlers ---
+      room.on(RoomEvent.Connected, () => {
+        setStatus("Connected — speak into your microphone", "connected");
+        visualizer.classList.add("active");
+        btnEndSim.disabled = false;
+      });
+
+      room.on(RoomEvent.Disconnected, () => {
+        setStatus("Disconnected", "error");
+        visualizer.classList.remove("active");
+      });
+
+      room.on(RoomEvent.TrackSubscribed, (track, _pub, _participant) => {
+        if (track.kind === Track.Kind.Audio) {
+          const el = track.attach();
+          el.id = "audio-agent";
+          document.body.appendChild(el);
+        }
+      });
+
+      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        track.detach().forEach(el => el.remove());
+      });
+
+      room.on(RoomEvent.DataReceived, (...args) => {
+        const payload = args[0];
+        let decoded;
+        try {
+          decoded = JSON.parse(new TextDecoder().decode(payload));
+        } catch { return; }
+
+        console.log("[VC] DataReceived:", decoded);
+
+        if (decoded.type === "client_action") {
+          switch (decoded.action) {
+            case "send_transcript": {
+              const { role, text } = decoded.payload;
+              appendTranscript(role, text);
+              break;
+            }
+            case "end_simulation": {
+              console.log("[VC] end_simulation received");
+              setStatus("Simulation ended by agent", "connected");
+              setTimeout(() => endSimulation(), 1500);
+              break;
+            }
+            default:
+              console.log("[VC] Unknown action:", decoded.action, decoded.payload);
+          }
+        }
+      });
+
+      room.on(RoomEvent.ConnectionStateChanged, (state) => {
+        if (state === ConnectionState.Reconnecting) {
+          setStatus("Reconnecting…", "connecting");
+        }
+      });
+
+      // --- Connect ---
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      await room.connect(url, token);
+      await room.localParticipant.setMicrophoneEnabled(true);
+
+      // Send scenario context to the agent
+      const contextPayload = JSON.stringify({
+        type: "client_action",
+        action: "session_context",
+        payload: {
+          scenario_id: scenario.id,
+          title: scenario.title,
+          difficulty: scenario.difficulty,
+          text: "Scenario: " + scenario.title + " (" + scenario.difficulty + ")"
+        }
+      });
+      await room.localParticipant.publishData(
+        new TextEncoder().encode(contextPayload),
+        { topic: "client_actions" }
+      );
+      console.log("[VC] Sent session_context for", scenario.id);
+    }
+
+    function appendTranscript(role, text) {
+      transcriptEntries.push({
+        role: role,
+        text: text,
+        timestamp: new Date().toISOString()
+      });
+      const line = document.createElement("div");
+      line.className = "transcript-line";
+      const label = role === "user" ? "You" : "Customer";
+      const roleClass = role === "user" ? "user" : "agent";
+      line.innerHTML = '<span class="role ' + roleClass + '">' + label + ':</span> ' + escapeHtml(text);
+      transcriptBox.appendChild(line);
+      transcriptBox.scrollTop = transcriptBox.scrollHeight;
+    }
+
+    async function endSimulation() {
+      visualizer.classList.remove("active");
+      btnEndSim.disabled = true;
+
+      // Disconnect LiveKit
+      if (room) {
+        room.disconnect();
+        room = null;
+      }
+
+      setStatus("Analyzing performance…", "connecting");
+
+      try {
+        // Store transcript
+        const storeResp = await fetch("/api/transcript", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scenario_id: currentScenario.id,
+            transcript: transcriptEntries
+          })
+        });
+        const storeData = await storeResp.json();
+
+        // Get coaching evaluation
+        const coachResp = await fetch("/api/coaching", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: storeData.session_id,
+            scenario_id: currentScenario.id,
+            transcript: transcriptEntries
+          })
+        });
+        const coaching = await coachResp.json();
+
+        showCoachingResults(coaching);
+      } catch (err) {
+        console.error("[VC] Coaching request failed:", err);
+        // Show coaching screen with error
+        showScreen(screenCoaching);
+        overallScore.textContent = "—";
+        scoreGrid.innerHTML = '<div class="loading-msg">⚠️ Could not load coaching results.</div>';
+      }
+    }
+
+    // Manual end simulation button
+    btnEndSim.addEventListener("click", () => endSimulation());
+
+    // -----------------------------------------------------------------------
+    // 3. Coaching Results
+    // -----------------------------------------------------------------------
+    function showCoachingResults(data) {
+      showScreen(screenCoaching);
+
+      // Overall score
+      const score = typeof data.overall_score === "number"
+        ? data.overall_score.toFixed(1)
+        : "—";
+      overallScore.textContent = score;
+      overallScore.style.color = scoreColor(parseFloat(score));
+
+      // Category scores
+      scoreGrid.innerHTML = "";
+      if (Array.isArray(data.scores)) {
+        data.scores.forEach(s => {
+          const val = s.score || 0;
+          const tier = val >= 8 ? "score-green" : val >= 5 ? "score-amber" : "score-red";
+          const card = document.createElement("div");
+          card.className = "score-card " + tier;
+          card.innerHTML =
+            '<div class="sc-score">' + val + '<span style="font-size:0.9rem;opacity:0.5">/' + (s.max_score || 10) + '</span></div>' +
+            '<div class="sc-cat">' + escapeHtml(s.category) + '</div>' +
+            '<div class="sc-section">' + escapeHtml(s.manual_section || "") + '</div>' +
+            '<div class="sc-summary">' + escapeHtml(s.summary || "") + '</div>';
+          scoreGrid.appendChild(card);
+        });
+      }
+
+      // Improvement areas
+      if (Array.isArray(data.improvement_areas) && data.improvement_areas.length > 0) {
+        improvements.style.display = "block";
+        improvementsList.innerHTML = "";
+        data.improvement_areas.forEach(item => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          improvementsList.appendChild(li);
+        });
+      } else {
+        improvements.style.display = "none";
+      }
+
+      // Coaching dialogue
+      if (data.coaching_dialogue) {
+        coachingDialogue.style.display = "block";
+        dialogueContent.textContent = data.coaching_dialogue;
+      } else {
+        coachingDialogue.style.display = "none";
+      }
+    }
+
+    function scoreColor(val) {
+      if (isNaN(val)) return "var(--text-secondary)";
+      if (val >= 8) return "var(--green)";
+      if (val >= 5) return "var(--amber)";
+      return "var(--red)";
+    }
+
+    // Retry button
+    btnRetry.addEventListener("click", () => {
+      showScreen(screenPicker);
+    });
+
+    // -----------------------------------------------------------------------
+    // Utilities
+    // -----------------------------------------------------------------------
+    function escapeHtml(str) {
+      const d = document.createElement("div");
+      d.appendChild(document.createTextNode(str || ""));
+      return d.innerHTML;
+    }
+
+    // -----------------------------------------------------------------------
+    // Init
+    // -----------------------------------------------------------------------
+    loadScenarios();
+  })();
+  </script>
 </body>
 </html>

@@ -19,3 +19,9 @@ Added dev-certs-strategy
 ## Learnings
 - The dev container image mcr.microsoft.com/devcontainers/dotnet:10.0 does not include python3-venv by default. This needs to be explicitly installed using apt-get in onCreateCommand for polyglot applications to ensure Aspire Python backends work seamlessly without venv missing errors.
 - 2026-03-23T05:22:02Z: Fixed python3-venv dependency in dev container.
+
+## 20260323-phase0-tooling
+- Installed vocal-bridge 0.14.0 into backend venv (.venv at project root). `vb --version` confirmed working.
+- Added vocal-bridge>=0.7.1, python-dotenv>=1.0.0, requests>=2.31.0 to src/backend/requirements.txt.
+- Updated Program.cs to pass VB_API_KEY env var to backend via builder.Configuration (not hardcoded).
+- Created .env.example at project root with VB_API_KEY placeholder.

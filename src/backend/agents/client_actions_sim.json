@@ -1,0 +1,13 @@
+[
+  {
+    "name": "end_simulation",
+    "description": "Signal that the customer conversation has ended naturally",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "session_context",
+    "description": "Receive the selected scenario persona and instructions at session start",
+    "direction": "app_to_agent",
+    "behavior": "respond"
+  }
+]
