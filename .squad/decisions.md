@@ -25,3 +25,29 @@ We decided to store all code under src/, with backend in Python and frontend in 
 **By:** Drew Robbins (via Copilot)
 **What:** All code should be under the `src` directory.
 **Why:** User request — captured for team memory
+
+
+## Merged Decisions (2026-03-23T05:13:48Z)
+# Local Dev Certificates Strategy for Polyglot Apps
+
+## Context
+When running .NET Aspire locally with a Python backend and TypeScript/React frontend, we need trusted HTTPS certificates to enable secure inter-service communication (e.g. gRPC or secure REST) and a clean developer experience without browser warnings.
+
+## Mechanism
+1. The `.devcontainer/devcontainer.json`'s `postStartCommand` provisions a trusted local certificate via `dotnet dev-certs https --trust`.
+2. It immediately exports these certificates into the `tmp/` root directory in PEM format (`tmp/localhost.crt` and `tmp/localhost.key`).
+
+## Usage by Subsystems
+
+### Backend (Python)
+- Python applications (such as FastAPI or Flask) can load these directly for their SSL context.
+- E.g., for Uvicorn: run with `--ssl-keyfile ../../tmp/localhost.key --ssl-certfile ../../tmp/localhost.crt` (adjust relative path to workspace root).
+- If acting as a client, ensure `REQUESTS_CA_BUNDLE` or `SSL_CERT_FILE` points to the exported certificate, or the OS trust store is updated (which the devcontainer already attempts).
+
+### Frontend (TypeScript / React / Vite)
+- The frontend dev server (like Vite or Webpack) can refer to these certificates to launch on `https://localhost`.
+- For Vite: configure `server.https.key` and `server.https.cert` pointing to `tmp/localhost.key` and `tmp/localhost.crt`, respectively.
+
+This ensures all components within Aspire share the same trusted certificate chain locally.
+
+

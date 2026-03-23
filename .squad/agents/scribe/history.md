@@ -6,3 +6,7 @@ Tech: Python, TypeScript, Aspire toolkit, OpenTelemetry, Azure App Insights, Azu
 
 ## Learnings
 - 2026-03-23T05:02:33Z: Reconciled Arthur's orchestration decisions and updated logs.
+
+### Dev Certificates Update Recorded (2026-03-23T05:13:48Z)
+- Logged orchestration and session for Browning"s dev certs setup.
+- Merged decisions from inbox to decisions.md.
