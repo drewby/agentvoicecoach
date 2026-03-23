@@ -1,0 +1,8 @@
+# Vocal Bridge CLI and SDK
+vocal-bridge>=0.7.1
+
+# Environment variable loading
+python-dotenv>=1.0.0
+
+# HTTP requests (for optional REST API approach)
+requests>=2.31.0
