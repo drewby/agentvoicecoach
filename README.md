@@ -1,8 +1,14 @@
 # 🎙 VoiceCoach — AI-Powered Customer Service Training Simulator
 
-VoiceCoach is a voice-based training simulator that uses AI to help customer service representatives practice handling realistic customer interactions. A simulated AI customer engages the trainee in a live voice conversation, then an AI coach evaluates their performance against the company employee manual.
+> **Built at the [DeepLearning.AI Global Builder Night — Tokyo](https://lu.ma/) (March 23, 2026)**, hosted at Google for Startups Campus, Shibuya. The project skeleton and dev environment were prepared beforehand, but the solution concept, product definition, and full implementation were completed during the 2-hour build session at the event.
 
-> **Built during a 2-hour hackathon** using [Vocal Bridge](https://vocalbridgeai.com), OpenAI, and .NET Aspire.
+## The Problem
+
+Customer service is a high-turnover function across many industries. Front-line managers pour resources into onboarding and training new representatives — only to see them leave weeks or months later. Traditional training methods (shadowing, scripts, role-play with peers) are expensive, inconsistent, and hard to scale.
+
+## The Solution
+
+VoiceCoach uses AI to make that training instant, repeatable, and self-serve. A simulated AI customer engages the trainee in a realistic live voice conversation, then an AI coach evaluates their performance against the company employee manual and walks them through what they did well and where to improve — all by voice. No human trainer required.
 
 ## 🎬 Demo
 
