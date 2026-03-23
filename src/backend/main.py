@@ -146,7 +146,7 @@ def _configure_vb_for_simulation(scenario: dict) -> None:
         prompt_path = pf.name
 
     model_settings = {
-        "tts_voice": scenario.get("voice_id", "alloy"),
+        "tts_voice": scenario.get("voice_id", "cedar"),
         "voice_style": scenario.get("voice_style", "friendly"),
     }
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as mf:

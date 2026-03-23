@@ -796,7 +796,13 @@
         room = null;
       }
 
-      setStatus("Analyzing performance…", "connecting");
+      // Show coaching screen immediately with loading state
+      showScreen(screenCoaching);
+      overallScore.textContent = "…";
+      overallScore.style.color = "var(--text-secondary)";
+      scoreGrid.innerHTML = '<div class="loading-msg">🔄 Analyzing your performance with AI…</div>';
+      improvements.style.display = "none";
+      coachingDialogue.style.display = "none";
 
       try {
         // Store transcript
@@ -872,7 +878,8 @@
         improvementsList.innerHTML = "";
         data.improvement_areas.forEach(item => {
           const li = document.createElement("li");
-          li.textContent = item;
+          // Handle both string and object formats from LLM
+          li.textContent = typeof item === "string" ? item : (item.text || item.area || item.description || item.suggestion || JSON.stringify(item));
           improvementsList.appendChild(li);
         });
       } else {
