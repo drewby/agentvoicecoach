@@ -51,3 +51,14 @@ When running .NET Aspire locally with a Python backend and TypeScript/React fron
 This ensures all components within Aspire share the same trusted certificate chain locally.
 
 
+# Decision: Add python3-venv to devcontainer
+
+**Date:** 2026-03-23T05:21:07Z
+**Agent:** Browning
+
+## Context
+The user experienced an error `/usr/bin/python3: No module named venv` when running the application. The default `dotnet:10.0` dev container lacks the `python3-venv` package.
+
+## Decision
+Added `sudo apt-get update && sudo apt-get install -y python3-venv` to the `onCreateCommand` in `.devcontainer/devcontainer.json`. This ensures any future rebuilds will include the package out of the box so developers do not need to intervene manually.
+
