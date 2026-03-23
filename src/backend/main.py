@@ -163,7 +163,7 @@ def _configure_vb_for_simulation(scenario: dict) -> None:
         os.unlink(settings_path)
 
 
-def _configure_vb_for_coaching(scenario: dict | None = None) -> None:
+def _configure_vb_for_coaching(scenario: dict | None = None, eval_context: str = "") -> None:
     """Reconfigure the VB agent for coaching mode."""
     coach_prompt = COACHING_PROMPT_FILE.read_text()
     if EMPLOYEE_MANUAL_FILE.exists():
@@ -178,6 +178,10 @@ def _configure_vb_for_coaching(scenario: dict | None = None) -> None:
             f"Customer persona: {scenario['customer_name']}\n"
             f"Manual sections tested: {', '.join(scenario.get('manual_sections_tested', []))}\n"
         )
+
+    # Append evaluation results and transcript so the coach can discuss specifics
+    if eval_context:
+        coach_prompt += eval_context
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as pf:
         pf.write(coach_prompt)
@@ -260,6 +264,8 @@ async def create_session(req: SessionRequest):
 class CoachingSessionRequest(BaseModel):
     scenario_id: str | None = None
     participant_name: str = "Web User"
+    evaluation: dict | None = None
+    transcript: list[TranscriptEntry] | None = None
 
 
 @app.post("/api/coaching-session")
@@ -269,8 +275,31 @@ async def create_coaching_session(req: CoachingSessionRequest):
     if req.scenario_id and SCENARIOS_FILE.exists():
         scenarios = json.loads(SCENARIOS_FILE.read_text())
         scenario = next((s for s in scenarios if s["id"] == req.scenario_id), None)
+
+    # Build evaluation + transcript context for the coaching agent
+    eval_context = ""
+    if req.evaluation:
+        eval_context += "\n\n## Evaluation Results\n\n"
+        eval_context += f"**Overall Score:** {req.evaluation.get('overall_score', 'N/A')}\n\n"
+        for s in req.evaluation.get("scores", []):
+            eval_context += f"- **{s.get('category', '')}** ({s.get('manual_section', '')}): {s.get('score', '?')}/{s.get('max_score', 10)} — {s.get('summary', '')}\n"
+        if req.evaluation.get("improvement_areas"):
+            eval_context += "\n**Key Improvement Areas:**\n"
+            for area in req.evaluation["improvement_areas"]:
+                eval_context += f"- {area}\n"
+        if req.evaluation.get("coaching_dialogue"):
+            eval_context += f"\n**Analysis Summary:** {req.evaluation['coaching_dialogue']}\n"
+
+    if req.transcript:
+        eval_context += "\n\n## Simulation Transcript\n\n"
+        for t in req.transcript:
+            ts = t.timestamp or ""
+            eval_context += f"[{ts}] {t.role}: {t.text}\n"
+
     try:
-        _configure_vb_for_coaching(scenario)
+        _configure_vb_for_coaching(scenario, eval_context)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -370,7 +399,6 @@ async def get_coaching(req: CoachingRequest):
 
     openai_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai_key:
-        # Return mock so frontend can still develop
         return _mock_coaching_response()
 
     from openai import AsyncOpenAI
@@ -379,7 +407,7 @@ async def get_coaching(req: CoachingRequest):
     messages = _build_coaching_messages(scenario_id, transcript)
 
     completion = await client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-5.4",
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.3,

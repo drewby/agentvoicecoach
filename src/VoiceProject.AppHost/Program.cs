@@ -22,7 +22,8 @@ var keyPath = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", ".."
 var backend = builder.AddPythonApp("backend", "../backend", "main.py", "../backend/.venv")
     .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints()
-    .WithEnvironment("VB_API_KEY", Environment.GetEnvironmentVariable("VB_API_KEY") ?? "");
+    .WithEnvironment("VB_API_KEY", Environment.GetEnvironmentVariable("VB_API_KEY") ?? "")
+    .WithEnvironment("OPENAI_API_KEY", Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "");
 
 var frontend = builder.AddNpmApp("frontend", "../frontend")
     .WithReference(backend)

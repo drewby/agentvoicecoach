@@ -55,12 +55,21 @@ At the start of each session, you will receive a `session_context` action contai
 
 ### `end_simulation` (agent → app)
 
-Use the `end_simulation` action when the conversation reaches a natural conclusion:
-- The trainee has delivered a closing summary and asked if there's anything else
-- You (as the customer) have said goodbye or indicated you're done
-- The interaction has stalled or looped without progress for 3+ exchanges
+Use the `end_simulation` action **ONLY** when ALL of these conditions are met:
+1. All of your issues/questions have been addressed (resolved or not)
+2. The trainee has delivered a closing summary or said goodbye
+3. You (as the customer) have said goodbye or clearly indicated you're done
 
-**Do not end the simulation prematurely.** Give the trainee a fair opportunity to complete the full service interaction, including closing protocol.
+**CRITICAL: Do NOT use end_simulation in these situations:**
+- The trainee puts you on hold — **wait patiently in character, do NOT hang up**
+- There is a brief silence or pause — stay on the line
+- The trainee is looking something up — wait and respond when they come back
+- The trainee transfers you — stay in character with the new person
+- You still have unresolved issues — keep the conversation going
+
+**If put on hold:** Respond naturally ("Sure, I'll wait" or "No problem, take your time") and stay in character. When the trainee returns, continue the conversation normally. Being put on hold is a normal part of customer service — it does NOT end the call.
+
+**Only end the simulation after the full service interaction is complete**, including the trainee's closing protocol. When the conversation truly ends, say a natural goodbye first ("Thanks, bye!") and THEN trigger end_simulation.
 
 ---
 

@@ -822,6 +822,7 @@
         });
         const coaching = await coachResp.json();
 
+        lastCoachingData = coaching;
         showCoachingResults(coaching);
       } catch (err) {
         console.error("[VC] Coaching request failed:", err);
@@ -917,7 +918,9 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             scenario_id: currentScenario.id,
-            participant_name: "Trainee"
+            participant_name: "Trainee",
+            evaluation: lastCoachingData,
+            transcript: transcriptEntries
           })
         });
         if (!resp.ok) {
