@@ -362,6 +362,79 @@
     }
     .btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.05); }
 
+    /* ============== Coaching Voice Section ============== */
+    .coaching-voice-section {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      display: none;
+    }
+    .coaching-voice-section.active {
+      display: block;
+    }
+    .coaching-voice-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .coaching-voice-header h3 {
+      font-size: 1rem;
+    }
+    .coaching-voice-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+    .coaching-status-text {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .coaching-transcript-box {
+      width: 100%;
+      max-height: 250px;
+      overflow-y: auto;
+      background: var(--bg-secondary);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      font-size: 0.9rem;
+    }
+    .coaching-transcript-box:empty::before {
+      content: "Coaching conversation will appear here…";
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+    .coaching-visualizer {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(108,99,255,0.25) 0%, transparent 70%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .coaching-visualizer.active .cviz-ring {
+      animation: vizPulse 1.5s ease-in-out infinite;
+    }
+    .cviz-ring {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 3px solid var(--accent);
+      opacity: 0.6;
+    }
+    .coaching-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+    .btn-coaching {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-coaching:hover:not(:disabled) { background: var(--accent-hover); }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -435,8 +508,29 @@
           <div id="dialogue-content" class="dialogue-content"></div>
         </details>
 
-        <div style="text-align:center; margin-top:1rem;">
-          <button id="btn-retry" class="btn btn-primary">Try Another Scenario</button>
+        <!-- Coaching Voice Call Section -->
+        <div id="coaching-voice-section" class="coaching-voice-section">
+          <div class="coaching-voice-header">
+            <h3>🎧 Live Coaching Call</h3>
+            <div class="coaching-status-text">
+              <span id="coaching-status-dot" class="status-dot connecting" style="display:none;"></span>
+              <span id="coaching-status-text"></span>
+            </div>
+          </div>
+          <div class="coaching-voice-body">
+            <div id="coaching-visualizer" class="coaching-visualizer">
+              <div class="cviz-ring"></div>
+            </div>
+            <div id="coaching-transcript" class="coaching-transcript-box"></div>
+            <div class="coaching-actions">
+              <button id="btn-end-coaching" class="btn btn-danger" style="display:none;">End Coaching Call</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align:center; margin-top:1rem; display:flex; gap:1rem; justify-content:center;">
+          <button id="btn-start-coaching" class="btn btn-primary">🎧 Start Coaching Session</button>
+          <button id="btn-retry" class="btn btn-ghost">Try Another Scenario</button>
         </div>
       </div>
     </div>
@@ -452,6 +546,10 @@
     let currentScenario = null;
     let room = null;
     let transcriptEntries = [];
+    let transcriptMode = "simulation"; // "simulation" | "coaching"
+    let coachingRoom = null;
+    let coachingTranscriptEntries = [];
+    let lastCoachingData = null; // store coaching results for the session
 
     // -----------------------------------------------------------------------
     // DOM refs
@@ -473,6 +571,13 @@
     const coachingDialogue = document.getElementById("coaching-dialogue");
     const dialogueContent  = document.getElementById("dialogue-content");
     const btnRetry       = document.getElementById("btn-retry");
+    const coachingVoiceSection = document.getElementById("coaching-voice-section");
+    const coachingStatusDot    = document.getElementById("coaching-status-dot");
+    const coachingStatusText   = document.getElementById("coaching-status-text");
+    const coachingVisualizer   = document.getElementById("coaching-visualizer");
+    const coachingTranscriptBox = document.getElementById("coaching-transcript");
+    const btnStartCoaching = document.getElementById("btn-start-coaching");
+    const btnEndCoaching   = document.getElementById("btn-end-coaching");
 
     // -----------------------------------------------------------------------
     // Screen management
@@ -662,19 +767,23 @@
       console.log("[VC] Sent session_context for", scenario.id);
     }
 
-    function appendTranscript(role, text) {
-      transcriptEntries.push({
+    function appendTranscript(role, text, targetBox) {
+      const box = targetBox || transcriptBox;
+      const isCoaching = (box === coachingTranscriptBox);
+      const entries = isCoaching ? coachingTranscriptEntries : transcriptEntries;
+      entries.push({
         role: role,
         text: text,
         timestamp: new Date().toISOString()
       });
       const line = document.createElement("div");
       line.className = "transcript-line";
-      const label = role === "user" ? "You" : "Customer";
+      const agentLabel = isCoaching ? "Coach" : "Customer";
+      const label = role === "user" ? "You" : agentLabel;
       const roleClass = role === "user" ? "user" : "agent";
       line.innerHTML = '<span class="role ' + roleClass + '">' + label + ':</span> ' + escapeHtml(text);
-      transcriptBox.appendChild(line);
-      transcriptBox.scrollTop = transcriptBox.scrollHeight;
+      box.appendChild(line);
+      box.scrollTop = box.scrollHeight;
     }
 
     async function endSimulation() {
@@ -785,8 +894,175 @@
       return "var(--red)";
     }
 
+    // -----------------------------------------------------------------------
+    // 4. Coaching Voice Call
+    // -----------------------------------------------------------------------
+    function setCoachingStatus(msg, state) {
+      coachingStatusText.textContent = msg;
+      coachingStatusDot.style.display = "inline-block";
+      coachingStatusDot.className = "status-dot " + (state || "connecting");
+    }
+
+    async function startCoachingSession() {
+      if (!currentScenario) return;
+      coachingTranscriptEntries = [];
+      coachingTranscriptBox.innerHTML = "";
+      transcriptMode = "coaching";
+      btnStartCoaching.disabled = true;
+      btnStartCoaching.textContent = "Connecting…";
+
+      try {
+        const resp = await fetch("/api/coaching-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scenario_id: currentScenario.id,
+            participant_name: "Trainee"
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || "Coaching session request failed");
+        }
+        const data = await resp.json();
+        if (!data.livekit_url || !data.token) {
+          throw new Error("Missing livekit_url or token in coaching response");
+        }
+
+        coachingVoiceSection.classList.add("active");
+        btnStartCoaching.style.display = "none";
+        btnEndCoaching.style.display = "inline-flex";
+
+        await connectCoachingLiveKit(data.livekit_url, data.token);
+      } catch (err) {
+        console.error("[VC] Coaching session start failed:", err);
+        setCoachingStatus("Error: " + err.message, "error");
+        coachingVoiceSection.classList.add("active");
+        btnStartCoaching.disabled = false;
+        btnStartCoaching.textContent = "🎧 Start Coaching Session";
+      }
+    }
+
+    async function connectCoachingLiveKit(url, token) {
+      if (typeof LivekitClient === "undefined") {
+        setCoachingStatus("Error: LiveKit SDK not loaded", "error");
+        return;
+      }
+
+      const { Room, RoomEvent, Track, ConnectionState } = LivekitClient;
+      setCoachingStatus("Connecting…", "connecting");
+
+      coachingRoom = new Room({ adaptiveStream: true, dynacast: true });
+
+      coachingRoom.on(RoomEvent.Connected, () => {
+        setCoachingStatus("Connected — speak with your coach", "connected");
+        coachingVisualizer.classList.add("active");
+        btnEndCoaching.disabled = false;
+      });
+
+      coachingRoom.on(RoomEvent.Disconnected, () => {
+        setCoachingStatus("Coaching call ended", "error");
+        coachingVisualizer.classList.remove("active");
+        cleanupCoachingCall();
+      });
+
+      coachingRoom.on(RoomEvent.TrackSubscribed, (track, _pub, _participant) => {
+        if (track.kind === Track.Kind.Audio) {
+          const el = track.attach();
+          el.id = "audio-coaching-agent";
+          document.body.appendChild(el);
+        }
+      });
+
+      coachingRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
+        track.detach().forEach(el => el.remove());
+      });
+
+      coachingRoom.on(RoomEvent.DataReceived, (...args) => {
+        const payload = args[0];
+        let decoded;
+        try {
+          decoded = JSON.parse(new TextDecoder().decode(payload));
+        } catch { return; }
+
+        console.log("[VC] Coaching DataReceived:", decoded);
+
+        if (decoded.type === "client_action") {
+          switch (decoded.action) {
+            case "send_transcript": {
+              const { role, text } = decoded.payload;
+              appendTranscript(role, text, coachingTranscriptBox);
+              break;
+            }
+            case "send_evaluation": {
+              console.log("[VC] Coaching evaluation received:", decoded.payload);
+              // Display evaluation data similarly to scores if provided
+              if (decoded.payload && decoded.payload.text) {
+                appendTranscript("agent", decoded.payload.text, coachingTranscriptBox);
+              }
+              break;
+            }
+            case "end_conversation": {
+              console.log("[VC] Coaching end_conversation received");
+              setCoachingStatus("Coach ended the conversation", "connected");
+              setTimeout(() => endCoachingCall(), 1500);
+              break;
+            }
+            default:
+              console.log("[VC] Unknown coaching action:", decoded.action);
+          }
+        }
+      });
+
+      coachingRoom.on(RoomEvent.ConnectionStateChanged, (state) => {
+        if (state === ConnectionState.Reconnecting) {
+          setCoachingStatus("Reconnecting…", "connecting");
+        }
+      });
+
+      // Connect — no session_context needed, backend bakes context into the prompt
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      await coachingRoom.connect(url, token);
+      await coachingRoom.localParticipant.setMicrophoneEnabled(true);
+      console.log("[VC] Connected to coaching room");
+    }
+
+    function endCoachingCall() {
+      if (coachingRoom) {
+        coachingRoom.disconnect();
+        coachingRoom = null;
+      }
+      cleanupCoachingCall();
+    }
+
+    function cleanupCoachingCall() {
+      coachingVisualizer.classList.remove("active");
+      btnEndCoaching.style.display = "none";
+      btnStartCoaching.style.display = "inline-flex";
+      btnStartCoaching.disabled = false;
+      btnStartCoaching.textContent = "🎧 Restart Coaching Session";
+      transcriptMode = "simulation";
+      // Remove coaching audio element
+      const audioEl = document.getElementById("audio-coaching-agent");
+      if (audioEl) audioEl.remove();
+    }
+
+    btnStartCoaching.addEventListener("click", () => startCoachingSession());
+    btnEndCoaching.addEventListener("click", () => endCoachingCall());
+
     // Retry button
     btnRetry.addEventListener("click", () => {
+      // Clean up any coaching call in progress
+      if (coachingRoom) {
+        coachingRoom.disconnect();
+        coachingRoom = null;
+      }
+      coachingVoiceSection.classList.remove("active");
+      btnStartCoaching.style.display = "inline-flex";
+      btnStartCoaching.disabled = false;
+      btnStartCoaching.textContent = "🎧 Start Coaching Session";
+      btnEndCoaching.style.display = "none";
+      transcriptMode = "simulation";
       showScreen(screenPicker);
     });
 

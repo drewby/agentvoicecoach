@@ -5,6 +5,8 @@
     "difficulty": "Easy",
     "description": "Help a friendly customer find the right gift",
     "customer_name": "Sarah",
+    "voice_id": "21m00Tcm4TlvDq8ikWAM",
+    "voice_style": "friendly",
     "persona": {
       "background": "A friendly first-time customer browsing for a gift for her partner who recently started a home coffee hobby.",
       "personality": "Polite, patient, slightly indecisive.",
@@ -23,6 +25,8 @@
     "difficulty": "Medium",
     "description": "Handle a returning customer with multiple order issues",
     "customer_name": "David",
+    "voice_id": "ErXwobaYiN019PkySvjV",
+    "voice_style": "focused",
     "persona": {
       "background": "A returning customer and loyalty member. He placed an order three days ago. Not angry but mildly frustrated because multiple things went wrong.",
       "personality": "Business-like, expects efficiency.",
@@ -41,6 +45,8 @@
     "difficulty": "Hard",
     "description": "De-escalate a frustrated customer demanding a refund on an out-of-window purchase",
     "customer_name": "Karen",
+    "voice_id": "AZnzlk1XvdvUeBnXmlld",
+    "voice_style": "dramatic",
     "persona": {
       "background": "A very frustrated customer. She purchased the ProEdge Knife Set five weeks ago as a wedding gift. The recipient found a chipped blade on first use. Karen is past the 30-day return window.",
       "personality": "Starts annoyed, escalates to angry when told a refund isn't possible. Will interrupt, repeat complaints, question product quality, and threaten bad reviews.",

@@ -10,3 +10,7 @@ Tech: Python, TypeScript, Aspire toolkit, OpenTelemetry, Azure App Insights, Azu
 - API proxy pattern: Express middleware at `/api` path forwards to backend via Node https module with `rejectUnauthorized: false` for dev certs. Backend URL from Aspire env var `services__backend__https__0`.
 - Coaching results API returns: `overall_score`, `scores[]` with category/score/max_score/manual_section/summary, `improvement_areas[]`, `coaching_dialogue`.
 - Dark UI theme: #0f1023 bg, #6c63ff accent, green/amber/red for score tiers (≥8/5-7/<5).
+- Coaching voice call: added second LiveKit connection (`coachingRoom`) for `POST /api/coaching-session` endpoint. Uses separate transcript box and visualizer within the coaching results screen. No `session_context` data channel needed — backend bakes context into the coaching agent prompt.
+- `appendTranscript` now accepts an optional `targetBox` param to route lines to either the simulation or coaching transcript. Agent label is "Customer" for simulation, "Coach" for coaching.
+- Coaching-specific client actions: `send_evaluation` (displays evaluation text in coaching transcript), `end_conversation` (disconnects coaching room).
+- Flow: scenario picker → simulation voice call → scores + coaching results → optional coaching voice call → retry.

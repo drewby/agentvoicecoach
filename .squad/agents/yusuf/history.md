@@ -12,3 +12,9 @@ Tech: Python, TypeScript, Aspire toolkit, OpenTelemetry, Azure App Insights, Azu
 - Transcripts stored in-memory dict keyed by uuid4, sufficient for hackathon MVP
 - Added httpx and openai to requirements.txt
 - Created setup_agents.py following helloworld pattern — creates both sim + coaching agents via vb CLI
+- POST /api/session now reconfigures VB agent dynamically per scenario using `vb` CLI: sets prompt (simulation_prompt.md + employee manual + scenario context), greeting (opening_line from scenario), model settings (voice_id, voice_style per scenario), and client actions
+- Added POST /api/coaching-session endpoint for coaching mode: reconfigures VB with coaching prompt, coach voice (VR6AewLTigWG4xSOukaG/professional), coaching client actions, and a warm coaching greeting
+- scenarios.json now includes voice_id and voice_style per scenario (ElevenLabs voice IDs mapped to personas)
+- VB CLI helper pattern: _find_vb() via shutil.which, _run_vb() with subprocess.run(capture_output=True), temp files via tempfile.NamedTemporaryFile(delete=False) with try/finally cleanup
+- Token acquisition extracted into shared _get_vb_token() helper used by both session endpoints
+- Key VB CLI commands: `vb prompt set -f FILE`, `vb config set --greeting TEXT`, `vb config set --model-settings-file FILE`, `vb config set --client-actions-file FILE`

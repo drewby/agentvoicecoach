@@ -1,5 +1,8 @@
 import json
 import os
+import shutil
+import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -23,8 +26,11 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 AGENTS_DIR = Path(__file__).resolve().parent / "agents"
 SCENARIOS_FILE = AGENTS_DIR / "scenarios.json"
+SIMULATION_PROMPT_FILE = AGENTS_DIR / "simulation_prompt.md"
 COACHING_PROMPT_FILE = AGENTS_DIR / "coaching_prompt.md"
 EMPLOYEE_MANUAL_FILE = AGENTS_DIR / "employee_manual.md"
+CLIENT_ACTIONS_SIM_FILE = AGENTS_DIR / "client_actions_sim.json"
+CLIENT_ACTIONS_COACH_FILE = AGENTS_DIR / "client_actions_coach.json"
 
 # ---------------------------------------------------------------------------
 # In-memory transcript store
@@ -90,11 +96,113 @@ async def get_scenarios():
 
 
 # ---------------------------------------------------------------------------
-# 2. POST /api/session — get LiveKit token from Vocal Bridge
+# VB CLI helpers
 # ---------------------------------------------------------------------------
 
-@app.post("/api/session")
-async def create_session(req: SessionRequest):
+def _find_vb() -> str:
+    """Locate the vb binary — check venv first, then PATH."""
+    # Check the venv that the script is running from
+    venv_vb = Path(__file__).resolve().parent / ".venv" / "bin" / "vb"
+    if venv_vb.exists():
+        return str(venv_vb)
+    vb_path = shutil.which("vb")
+    if not vb_path:
+        raise RuntimeError("vb CLI not found on PATH or in .venv")
+    return vb_path
+
+
+def _run_vb(args: list[str]) -> subprocess.CompletedProcess:
+    """Run a vb CLI command and return the result."""
+    vb = _find_vb()
+    result = subprocess.run([vb] + args, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"vb CLI error: {result.stderr[:500]}")
+    return result
+
+
+def _configure_vb_for_simulation(scenario: dict) -> None:
+    """Reconfigure the VB agent for a simulation scenario."""
+    # Build the full prompt: simulation_prompt.md with employee manual injected
+    sim_prompt = SIMULATION_PROMPT_FILE.read_text()
+    if EMPLOYEE_MANUAL_FILE.exists():
+        manual_text = EMPLOYEE_MANUAL_FILE.read_text()
+        sim_prompt = sim_prompt.replace("{{EMPLOYEE_MANUAL}}", manual_text)
+
+    # Append scenario-specific context so the agent knows who to play
+    scenario_block = (
+        f"\n\n---\n\n## Session Scenario\n\n"
+        f"- **Customer Name**: {scenario['customer_name']}\n"
+        f"- **Persona**: {json.dumps(scenario['persona'])}\n"
+        f"- **Goal**: {scenario['goal']}\n"
+        f"- **Behavior**: {scenario['behavior']}\n"
+        f"- **Actor Strategy**: {scenario['actor_strategy']}\n"
+        f"- **Opening Line**: {scenario['opening_line']}\n"
+    )
+    sim_prompt += scenario_block
+
+    # Write temp files for prompt and model settings
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as pf:
+        pf.write(sim_prompt)
+        prompt_path = pf.name
+
+    model_settings = {
+        "tts_voice": scenario.get("voice_id", "alloy"),
+        "voice_style": scenario.get("voice_style", "friendly"),
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as mf:
+        json.dump(model_settings, mf)
+        settings_path = mf.name
+
+    try:
+        _run_vb(["prompt", "set", "-f", prompt_path])
+        _run_vb(["config", "set", "--greeting", scenario.get("opening_line", "")])
+        _run_vb(["config", "set", "--model-settings-file", settings_path])
+        _run_vb(["config", "set", "--client-actions-file", str(CLIENT_ACTIONS_SIM_FILE)])
+    finally:
+        os.unlink(prompt_path)
+        os.unlink(settings_path)
+
+
+def _configure_vb_for_coaching(scenario: dict | None = None) -> None:
+    """Reconfigure the VB agent for coaching mode."""
+    coach_prompt = COACHING_PROMPT_FILE.read_text()
+    if EMPLOYEE_MANUAL_FILE.exists():
+        manual_text = EMPLOYEE_MANUAL_FILE.read_text()
+        coach_prompt = coach_prompt.replace("{{EMPLOYEE_MANUAL}}", manual_text)
+
+    # Append scenario context so the coach knows what was tested
+    if scenario:
+        coach_prompt += (
+            f"\n\n---\n\n## Session Context\n\n"
+            f"The trainee just completed: **{scenario['title']}** ({scenario['difficulty']})\n"
+            f"Customer persona: {scenario['customer_name']}\n"
+            f"Manual sections tested: {', '.join(scenario.get('manual_sections_tested', []))}\n"
+        )
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as pf:
+        pf.write(coach_prompt)
+        prompt_path = pf.name
+
+    model_settings = {
+        "tts_voice": "VR6AewLTigWG4xSOukaG",
+        "voice_style": "professional",
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as mf:
+        json.dump(model_settings, mf)
+        settings_path = mf.name
+
+    try:
+        _run_vb(["prompt", "set", "-f", prompt_path])
+        _run_vb(["config", "set", "--greeting", "Great job completing that simulation. Let me walk you through your performance."])
+        _run_vb(["config", "set", "--model-settings-file", settings_path])
+        _run_vb(["config", "set", "--client-actions-file", str(CLIENT_ACTIONS_COACH_FILE)])
+    finally:
+        os.unlink(prompt_path)
+        os.unlink(settings_path)
+
+
+async def _get_vb_token(participant_name: str) -> dict:
+    """Call the VB token endpoint and return response data."""
     api_key = os.environ.get("VB_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="VB_API_KEY not configured")
@@ -103,7 +211,7 @@ async def create_session(req: SessionRequest):
         "X-API-Key": api_key,
         "Content-Type": "application/json",
     }
-    payload = {"participant_name": req.participant_name}
+    payload = {"participant_name": participant_name}
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(VB_TOKEN_ENDPOINT, json=payload, headers=headers)
@@ -113,8 +221,61 @@ async def create_session(req: SessionRequest):
             status_code=resp.status_code,
             detail=f"Vocal Bridge API error: {resp.text[:500]}",
         )
+    return resp.json()
 
-    data = resp.json()
+
+# ---------------------------------------------------------------------------
+# 2. POST /api/session — configure VB + get LiveKit token
+# ---------------------------------------------------------------------------
+
+@app.post("/api/session")
+async def create_session(req: SessionRequest):
+    # Load scenarios and find the requested one
+    if not SCENARIOS_FILE.exists():
+        raise HTTPException(status_code=500, detail="scenarios.json not found")
+    scenarios = json.loads(SCENARIOS_FILE.read_text())
+    scenario = next((s for s in scenarios if s["id"] == req.scenario_id), None)
+    if not scenario:
+        raise HTTPException(status_code=404, detail=f"Scenario '{req.scenario_id}' not found")
+
+    # Reconfigure VB agent for this simulation scenario
+    try:
+        _configure_vb_for_simulation(scenario)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Get token from VB
+    data = await _get_vb_token(req.participant_name)
+    return {
+        "livekit_url": data["livekit_url"],
+        "token": data["token"],
+        "room_name": data.get("room_name"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# 2b. POST /api/coaching-session — configure VB for coaching + get token
+# ---------------------------------------------------------------------------
+
+class CoachingSessionRequest(BaseModel):
+    scenario_id: str | None = None
+    participant_name: str = "Web User"
+
+
+@app.post("/api/coaching-session")
+async def create_coaching_session(req: CoachingSessionRequest):
+    # Reconfigure VB agent for coaching mode
+    scenario = None
+    if req.scenario_id and SCENARIOS_FILE.exists():
+        scenarios = json.loads(SCENARIOS_FILE.read_text())
+        scenario = next((s for s in scenarios if s["id"] == req.scenario_id), None)
+    try:
+        _configure_vb_for_coaching(scenario)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Get token from VB
+    data = await _get_vb_token(req.participant_name)
     return {
         "livekit_url": data["livekit_url"],
         "token": data["token"],
