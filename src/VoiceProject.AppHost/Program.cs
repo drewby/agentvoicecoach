@@ -1,7 +1,7 @@
-var builder = DistributedApplication.CreateBuilder(args);
-
-// Load .env file from repo root if it exists (Python-style env file)
-var envFile = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", ".env"));
+// Load .env file from repo root if it exists (Python-style env file).
+// Must run BEFORE CreateBuilder so dashboard config env vars are visible.
+var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+var envFile = Path.Combine(repoRoot, ".env");
 if (File.Exists(envFile))
 {
     foreach (var line in File.ReadAllLines(envFile))
@@ -16,6 +16,8 @@ if (File.Exists(envFile))
     }
 }
 
+var builder = DistributedApplication.CreateBuilder(args);
+
 var certPath = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "tmp", "localhost.crt"));
 var keyPath = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "tmp", "localhost.key"));
 
@@ -27,11 +29,6 @@ var backend = builder.AddPythonApp("backend", "../backend", "main.py", "../backe
     .WithEnvironment("VB_COACH_API_KEY", Environment.GetEnvironmentVariable("VB_COACH_API_KEY") ?? "")
     .WithEnvironment("OPENAI_API_KEY", Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "");
 
-// The OTLP HTTP endpoint is configured in launchSettings.json and enables
-// the Aspire dashboard to accept OTLP/HTTP (protobuf/JSON) alongside gRPC.
-// The frontend proxy needs this separate endpoint for browser trace forwarding.
-var otlpHttpEndpoint = Environment.GetEnvironmentVariable("ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL") ?? "";
-
 var frontend = builder.AddNpmApp("frontend", "../frontend")
     .WithReference(backend)
     .WaitFor(backend)
@@ -39,6 +36,6 @@ var frontend = builder.AddNpmApp("frontend", "../frontend")
     .WithExternalHttpEndpoints()
     .WithEnvironment("SSL_CERT_FILE", certPath)
     .WithEnvironment("SSL_KEY_FILE", keyPath)
-    .WithEnvironment("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", otlpHttpEndpoint);
+    .WithEnvironment("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", Environment.GetEnvironmentVariable("ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL") ?? "");
 
 builder.Build().Run();
