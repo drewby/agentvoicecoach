@@ -1,6 +1,6 @@
 # 🎙 VoiceCoach — AI-Powered Customer Service Training Simulator
 
-> **Built at the [DeepLearning.AI Global Builder Night — Tokyo](https://lu.ma/) (March 23, 2026)**, hosted at Google for Startups Campus, Shibuya. The project skeleton and dev environment were prepared beforehand, but the solution concept, product definition, and full implementation were completed during the 2-hour build session at the event.
+> **Origin:** VoiceCoach started at the [DeepLearning.AI Global Builder Night — Tokyo](https://lu.ma/) (March 23, 2026), hosted at Google for Startups Campus, Shibuya. The project skeleton and dev environment were prepared beforehand; the solution concept, product definition, and a working MVP were completed during the 2-hour build session. Development has continued since — adding full OpenTelemetry observability, improved agent prompts, and coaching session refinements.
 
 ## The Problem
 
@@ -98,6 +98,16 @@ sequenceDiagram
 - **8-category scoring rubric** grounded in the employee manual
 - **Voice coaching session** — an AI coach discusses your performance after scoring
 - **Aspire orchestration** — one command runs everything
+
+## 📡 Observability
+
+VoiceCoach is instrumented with [OpenTelemetry](https://opentelemetry.io/) across both browser and backend, with traces and log records flowing into the [.NET Aspire dashboard](https://learn.microsoft.com/dotnet/aspire). Each session phase (simulation, feedback, coaching) produces a structured trace with child spans for real work — API calls, room connections, conversations — and transcript turns emitted as OTel log records correlated to the active span.
+
+![Aspire simulation trace](docs/Aspire%20screenshot.png)
+
+The [Aspire MCP server](https://www.nuget.org/packages/Aspire.Dashboard.MCP) was key to our development workflow — Squad agents could query traces and structured logs programmatically, inspect conversation transcripts turn by turn, and identify issues without manual dashboard browsing. For example, examining a simulation trace revealed the agent wasting its first turn with a generic preamble instead of the scripted persona, garbled STT noise mixed into real turns, and a coaching agent going silent mid-session. Each issue was visible directly in the `transcript_turn` log records on the `conversation` span.
+
+> See [docs/telemetry-architecture.md](docs/telemetry-architecture.md) for the full design, trace structure, and attribute conventions.
 
 ## Prerequisites
 

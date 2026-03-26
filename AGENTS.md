@@ -47,6 +47,9 @@ The user may request that you update the Aspire apphost. You can do this using t
 dotnet tool install --global dotnet-outdated-tool
 ```
 
+## Backend health check convention
+IMPORTANT! The backend health endpoint (`/`) must reflect the real readiness of the service, including all critical dependencies (e.g. external agents, API keys, database connections). If any critical dependency failed to initialize at startup, the health endpoint must return HTTP 503 with a `{"status": "unhealthy", "reason": "..."}` body. Returning 200 when the service cannot handle requests is a bug.
+
 ## Persistent containers
 IMPORTANT! Consider avoiding persistent containers early during development to avoid creating state management issues when restarting the app.
 
