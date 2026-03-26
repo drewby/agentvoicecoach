@@ -14,6 +14,17 @@ const backendUrl = process.env.services__backend__http__0 || "http://localhost:8
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// ---------------------------------------------------------------------------
+// Browser telemetry config — expose OTLP endpoint so the browser SDK can send
+// traces directly to the Aspire dashboard (CORS is handled by Aspire).
+// See: https://aspire.dev/dashboard/enable-browser-telemetry/
+// ---------------------------------------------------------------------------
+app.get("/otel-config", (_req, res) => {
+  const endpoint = process.env.OTEL_EXPORTER_OTLP_HTTP_ENDPOINT || "";
+  const headers = process.env.OTEL_EXPORTER_OTLP_HEADERS || "";
+  res.json({ endpoint, headers });
+});
+
 // Proxy /api/* to the backend
 app.use("/api", (req, res) => {
   const url = new URL(req.url, backendUrl);
@@ -37,9 +48,7 @@ app.use("/api", (req, res) => {
 
   proxyReq.on("error", (err) => {
     console.error("[Proxy] Error forwarding to backend:", err.message);
-    if (!res.headersSent) {
-      res.status(502).json({ error: "Backend unavailable", detail: err.message });
-    }
+    res.status(502).json({ error: "Backend unavailable", detail: err.message });
   });
 
   req.pipe(proxyReq);
@@ -58,6 +67,9 @@ const server = https.createServer(
 );
 
 server.listen(port, "0.0.0.0", () => {
-  console.log(`Frontend listening on https://0.0.0.0:${port}`);
-  console.log(`Proxying /api/* to ${backendUrl}`);
+  console.log("Frontend listening on https://0.0.0.0:" + port);
+  console.log("Proxying /api/* to " + backendUrl);
+  console.log("OTEL_EXPORTER_OTLP_ENDPOINT =", process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "(not set)");
+  console.log("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT =", process.env.OTEL_EXPORTER_OTLP_HTTP_ENDPOINT || "(not set)");
+  console.log("OTEL_EXPORTER_OTLP_HEADERS =", process.env.OTEL_EXPORTER_OTLP_HEADERS ? "(set)" : "(not set)");
 });

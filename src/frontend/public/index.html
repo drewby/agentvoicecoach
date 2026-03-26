@@ -443,6 +443,32 @@
       border-radius: 3px;
     }
 
+    /* ============== Simulation Hint Banner ============== */
+    .sim-hint {
+      width: 100%;
+      max-width: 700px;
+      background: rgba(108, 99, 255, 0.12);
+      border: 1px solid rgba(108, 99, 255, 0.35);
+      border-radius: var(--radius);
+      padding: 0.85rem 1.25rem;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      display: none;
+    }
+    .sim-hint.visible { display: block; }
+    .sim-hint .hint-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--accent);
+      margin-bottom: 0.35rem;
+    }
+    .sim-hint .hint-phrase {
+      color: var(--text-primary);
+      font-style: italic;
+    }
+
     /* Responsive */
     @media (max-width: 600px) {
       .app-container { padding: 1rem; }
@@ -478,6 +504,11 @@
 
         <div id="visualizer" class="visualizer">
           <div class="viz-ring"></div>
+        </div>
+
+        <div id="sim-hint" class="sim-hint">
+          <div class="hint-label">💡 Opening hint</div>
+          <div class="hint-phrase">"Thank you for calling Northfield Home &amp; Living, this is [your name]. How can I help you today?"</div>
         </div>
 
         <div id="transcript" class="transcript-box"></div>
@@ -536,6 +567,7 @@
     </div>
   </div>
 
+  <script src="otel-bundle.js"></script>
   <script>
   (function() {
     "use strict";
@@ -544,12 +576,20 @@
     // State
     // -----------------------------------------------------------------------
     let currentScenario = null;
+    let currentScenarioContext = null; // full context from /api/session (persona, actor_strategy, etc.)
     let room = null;
     let transcriptEntries = [];
     let transcriptMode = "simulation"; // "simulation" | "coaching"
     let coachingRoom = null;
     let coachingTranscriptEntries = [];
     let lastCoachingData = null; // store coaching results for the session
+    let sessionId = null;
+    let simPhase = null;      // PhaseContext for simulation
+    let feedbackPhase = null;  // PhaseContext for feedback
+    let coachingPhase = null;  // PhaseContext for coaching
+    let coachingIteration = 0; // coaching restart counter
+    let convSpan = null;       // conversation child span (long-lived)
+    let coachingConvSpan = null; // coaching conversation child span
 
     // -----------------------------------------------------------------------
     // DOM refs
@@ -578,6 +618,7 @@
     const coachingTranscriptBox = document.getElementById("coaching-transcript");
     const btnStartCoaching = document.getElementById("btn-start-coaching");
     const btnEndCoaching   = document.getElementById("btn-end-coaching");
+    const simHint          = document.getElementById("sim-hint");
 
     // -----------------------------------------------------------------------
     // Screen management
@@ -635,23 +676,36 @@
     // -----------------------------------------------------------------------
     async function startSimulation(scenario) {
       currentScenario = scenario;
+      currentScenarioContext = null;
       transcriptEntries = [];
       transcriptBox.innerHTML = "";
+      simHint.classList.remove("visible");
+      sessionId = scenario.id + "-" + Date.now();
+      simPhase = window.__otel ? window.__otel.startPhase(sessionId, "simulation", {
+        "scenario.id": scenario.id,
+        "scenario.title": scenario.title,
+        "scenario.difficulty": scenario.difficulty,
+      }) : null;
+      if (simPhase) simPhase.addEvent("simulation_started");
       showScreen(screenSim);
       simTitle.textContent = scenario.title;
       setStatus("Requesting session…", "connecting");
       btnEndSim.disabled = true;
 
       try {
-        // Get LiveKit token from backend
-        const resp = await fetch("/api/session", {
+        // Get LiveKit token from backend (also returns full scenario context)
+        const sessionOpts = {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             scenario_id: scenario.id,
-            participant_name: "Trainee"
+            participant_name: "Trainee",
+            trace_session_id: sessionId
           })
-        });
+        };
+        const resp = simPhase
+          ? await window.__otel.tracedFetch("/api/session", sessionOpts, simPhase)
+          : await fetch("/api/session", sessionOpts);
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
           throw new Error(err.detail || "Session request failed");
@@ -661,7 +715,8 @@
           throw new Error("Missing livekit_url or token in response");
         }
 
-        await connectLiveKit(data.livekit_url, data.token, scenario);
+        currentScenarioContext = data.scenario_context || null;
+        await connectLiveKit(data.livekit_url, data.token, scenario, currentScenarioContext);
       } catch (err) {
         console.error("[VC] Simulation start failed:", err);
         setStatus("Error: " + err.message, "error");
@@ -675,7 +730,7 @@
       }
     }
 
-    async function connectLiveKit(url, token, scenario) {
+    async function connectLiveKit(url, token, scenario, scenarioContext) {
       if (typeof LivekitClient === "undefined") {
         setStatus("Error: LiveKit SDK not loaded", "error");
         return;
@@ -688,9 +743,10 @@
 
       // --- Event handlers ---
       room.on(RoomEvent.Connected, () => {
-        setStatus("Connected — speak into your microphone", "connected");
+        setStatus("Connected — speak into your microphone to begin", "connected");
         visualizer.classList.add("active");
         btnEndSim.disabled = false;
+        simHint.classList.add("visible");  // show opening hint when connected
       });
 
       room.on(RoomEvent.Disconnected, () => {
@@ -724,10 +780,14 @@
             case "send_transcript": {
               const { role, text } = decoded.payload;
               appendTranscript(role, text);
+              if (convSpan) convSpan.addEvent("transcript_turn", { role, text });
+              // Hide the opening hint once the conversation starts
+              if (role === "user") simHint.classList.remove("visible");
               break;
             }
             case "end_simulation": {
               console.log("[VC] end_simulation received");
+              if (convSpan) convSpan.addEvent("end_simulation_received", { source: "agent" });
               setStatus("Simulation ended by agent", "connected");
               setTimeout(() => endSimulation(), 1500);
               break;
@@ -745,26 +805,42 @@
       });
 
       // --- Connect ---
+      const connectChild = simPhase ? simPhase.createChildSpan("room_connect", { "livekit.url": url }) : null;
       await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (connectChild) connectChild.addEvent("media_acquired");
       await room.connect(url, token);
+      if (connectChild) connectChild.addEvent("room_connected");
+      if (connectChild) connectChild.end();
       await room.localParticipant.setMicrophoneEnabled(true);
 
-      // Send scenario context to the agent
+      // Send full scenario context to the simulation agent
+      var scInput = scenarioContext || {
+        scenario_id: scenario.id,
+        title: scenario.title,
+        difficulty: scenario.difficulty,
+      };
+      const ctxChild = simPhase ? simPhase.createChildSpan("send_session_context", {
+        "client_action.action": "session_context",
+        "client_action.direction": "app_to_agent",
+      }) : null;
       const contextPayload = JSON.stringify({
         type: "client_action",
         action: "session_context",
-        payload: {
-          scenario_id: scenario.id,
-          title: scenario.title,
-          difficulty: scenario.difficulty,
-          text: "Scenario: " + scenario.title + " (" + scenario.difficulty + ")"
-        }
+        payload: scInput
       });
       await room.localParticipant.publishData(
         new TextEncoder().encode(contextPayload),
         { topic: "client_actions" }
       );
       console.log("[VC] Sent session_context for", scenario.id);
+      if (ctxChild) ctxChild.addEvent("published", { "client_action.input": JSON.stringify(scInput) });
+      if (ctxChild) ctxChild.end();
+
+      // Start conversation span — long-lived, covers entire dialogue
+      convSpan = simPhase ? simPhase.createChildSpan("conversation", {
+        "session.id": sessionId,
+        "scenario.id": currentScenario.id,
+      }) : null;
     }
 
     function appendTranscript(role, text, targetBox) {
@@ -787,6 +863,7 @@
     }
 
     async function endSimulation() {
+      if (convSpan) { convSpan.end(); convSpan = null; }
       visualizer.classList.remove("active");
       btnEndSim.disabled = true;
 
@@ -806,30 +883,55 @@
 
       try {
         // Store transcript
-        const storeResp = await fetch("/api/transcript", {
+        const cleanupChild = simPhase ? simPhase.createChildSpan("cleanup") : null;
+        const transcriptOpts = {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             scenario_id: currentScenario.id,
-            transcript: transcriptEntries
+            transcript: transcriptEntries,
+            trace_session_id: sessionId
           })
-        });
+        };
+        const storeResp = simPhase
+          ? await window.__otel.tracedFetch("/api/transcript", transcriptOpts, simPhase)
+          : await fetch("/api/transcript", transcriptOpts);
         const storeData = await storeResp.json();
+        if (storeData.session_id) sessionId = storeData.session_id;
+        if (cleanupChild) cleanupChild.end();
+
+        // End the simulation phase
+        if (simPhase) { simPhase.end(); simPhase = null; }
+
+        // Start feedback phase
+        feedbackPhase = window.__otel ? window.__otel.startPhase(sessionId, "feedback", {
+          "scenario.id": currentScenario.id,
+        }) : null;
 
         // Get coaching evaluation
-        const coachResp = await fetch("/api/coaching", {
+        const coachingOpts = {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             session_id: storeData.session_id,
             scenario_id: currentScenario.id,
-            transcript: transcriptEntries
+            transcript: transcriptEntries,
+            trace_session_id: sessionId
           })
-        });
+        };
+        const coachResp = feedbackPhase
+          ? await window.__otel.tracedFetch("/api/coaching", coachingOpts, feedbackPhase)
+          : await fetch("/api/coaching", coachingOpts);
         const coaching = await coachResp.json();
 
         lastCoachingData = coaching;
         showCoachingResults(coaching);
+
+        if (feedbackPhase) feedbackPhase.addEvent("evaluation_received", {
+          overall_score: coaching.overall_score,
+          categories_count: Array.isArray(coaching.scores) ? coaching.scores.length : 0,
+        });
+        if (feedbackPhase) { feedbackPhase.end(); feedbackPhase = null; }
       } catch (err) {
         console.error("[VC] Coaching request failed:", err);
         // Show coaching screen with error
@@ -840,7 +942,10 @@
     }
 
     // Manual end simulation button
-    btnEndSim.addEventListener("click", () => endSimulation());
+    btnEndSim.addEventListener("click", () => {
+      if (convSpan) convSpan.addEvent("end_simulation_received", { source: "user" });
+      endSimulation();
+    });
 
     // -----------------------------------------------------------------------
     // 3. Coaching Results
@@ -913,6 +1018,13 @@
 
     async function startCoachingSession() {
       if (!currentScenario) return;
+      coachingIteration++;
+      if (coachingPhase) { coachingPhase.end(); coachingPhase = null; }
+      coachingPhase = window.__otel ? window.__otel.startPhase(sessionId, "coaching", {
+        "scenario.id": currentScenario.id,
+        "coaching.iteration": coachingIteration,
+      }) : null;
+      if (coachingPhase) coachingPhase.addEvent("coaching_started");
       coachingTranscriptEntries = [];
       coachingTranscriptBox.innerHTML = "";
       transcriptMode = "coaching";
@@ -920,16 +1032,18 @@
       btnStartCoaching.textContent = "Connecting…";
 
       try {
-        const resp = await fetch("/api/coaching-session", {
+        const coachingSessionOpts = {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             scenario_id: currentScenario.id,
             participant_name: "Trainee",
-            evaluation: lastCoachingData,
-            transcript: transcriptEntries
+            trace_session_id: sessionId
           })
-        });
+        };
+        const resp = coachingPhase
+          ? await window.__otel.tracedFetch("/api/coaching-session", coachingSessionOpts, coachingPhase)
+          : await fetch("/api/coaching-session", coachingSessionOpts);
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
           throw new Error(err.detail || "Coaching session request failed");
@@ -1002,18 +1116,12 @@
             case "send_transcript": {
               const { role, text } = decoded.payload;
               appendTranscript(role, text, coachingTranscriptBox);
-              break;
-            }
-            case "send_evaluation": {
-              console.log("[VC] Coaching evaluation received:", decoded.payload);
-              // Display evaluation data similarly to scores if provided
-              if (decoded.payload && decoded.payload.text) {
-                appendTranscript("agent", decoded.payload.text, coachingTranscriptBox);
-              }
+              if (coachingConvSpan) coachingConvSpan.addEvent("transcript_turn", { role, text });
               break;
             }
             case "end_conversation": {
               console.log("[VC] Coaching end_conversation received");
+              if (coachingConvSpan) coachingConvSpan.addEvent("end_conversation_received", { source: "agent" });
               setCoachingStatus("Coach ended the conversation", "connected");
               setTimeout(() => endCoachingCall(), 1500);
               break;
@@ -1030,14 +1138,52 @@
         }
       });
 
-      // Connect — no session_context needed, backend bakes context into the prompt
+      // --- Connect ---
+      const connectChild = coachingPhase ? coachingPhase.createChildSpan("room_connect", { "livekit.url": url }) : null;
       await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (connectChild) connectChild.addEvent("media_acquired");
       await coachingRoom.connect(url, token);
+      if (connectChild) connectChild.addEvent("room_connected");
+      if (connectChild) connectChild.end();
       await coachingRoom.localParticipant.setMicrophoneEnabled(true);
       console.log("[VC] Connected to coaching room");
+
+      // Send evaluation and transcript to the coaching agent via client actions
+      const encode = (obj) => new TextEncoder().encode(JSON.stringify(obj));
+      const dataExchange = coachingPhase ? coachingPhase.createChildSpan("data_exchange") : null;
+
+      if (lastCoachingData) {
+        coachingRoom.localParticipant.publishData(
+          encode({ type: "client_action", action: "feedback_data", payload: lastCoachingData }),
+          { topic: "client_actions" }
+        );
+        console.log("[VC] Sent feedback_data to coaching agent");
+        if (dataExchange) dataExchange.addEvent("feedback_data_sent", { "client_action.input": JSON.stringify(lastCoachingData).slice(0, 4096) });
+      }
+
+      // Delay transcript_data by 100ms so feedback_data is processed first by the coaching agent
+      await new Promise(resolve => setTimeout(resolve, 100));
+      coachingRoom.localParticipant.publishData(
+        encode({
+          type: "client_action",
+          action: "transcript_data",
+          payload: { transcript: transcriptEntries }
+        }),
+        { topic: "client_actions" }
+      );
+      console.log("[VC] Sent transcript_data to coaching agent");
+      if (dataExchange) dataExchange.addEvent("transcript_data_sent", { "client_action.input": JSON.stringify({ entry_count: transcriptEntries.length }) });
+      if (dataExchange) dataExchange.end();
+
+      coachingConvSpan = coachingPhase ? coachingPhase.createChildSpan("conversation", {
+        "session.id": sessionId,
+        "scenario.id": currentScenario.id,
+      }) : null;
     }
 
     function endCoachingCall() {
+      if (coachingConvSpan) { coachingConvSpan.end(); coachingConvSpan = null; }
+      if (coachingPhase) { coachingPhase.end(); coachingPhase = null; }
       if (coachingRoom) {
         coachingRoom.disconnect();
         coachingRoom = null;
@@ -1063,6 +1209,7 @@
     // Retry button
     btnRetry.addEventListener("click", () => {
       // Clean up any coaching call in progress
+      if (coachingPhase) { coachingPhase.end(); coachingPhase = null; }
       if (coachingRoom) {
         coachingRoom.disconnect();
         coachingRoom = null;
