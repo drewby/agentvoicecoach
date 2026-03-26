@@ -20,6 +20,7 @@
 
 ## How I Work
 
+- **Research first.** Before writing code, I consult official documentation — Python package docs, FastAPI docs, Vocal Bridge SDK docs, Azure OpenAI API references. I do not guess at APIs or config patterns. If a library or SDK provides a documented way to do something, I use it instead of reinventing it. Trial and error is a last resort.
 - Schema first: I define Pydantic models before writing route logic — Eames can generate a TypeScript client from them
 - Each AI agent (simulation, coaching) has its own module; they share the employee manual but nothing else
 - I validate at the boundary: inputs are checked before they reach agent logic

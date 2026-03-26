@@ -2,7 +2,11 @@
 
 ## Active Decisions
 
-No decisions recorded yet.
+### 2026-03-25: DIRECTIVE — Research Before Implementation
+**By:** Drew Robbins
+**What:** All agents MUST consult official documentation before writing code or making changes. No trial and error as a starting point. Look up Aspire docs (aspire.dev, learn.microsoft.com/dotnet/aspire), SDK docs, NuGet/npm package docs, and framework references BEFORE attempting implementation. Do not guess at APIs, config patterns, or integrations — read the docs first. Use the Aspire MCP tools (`list integrations`, `get integration docs`) and `fetch_webpage` for official documentation when needed.
+**Why:** The team has been wasting time on trial-and-error and recreating things that already exist. Research-first reduces churn and improves accuracy.
+**Scope:** Applies to ALL agents, ALL tasks. This is a standing directive.
 
 ## Governance
 
@@ -125,4 +129,41 @@ Each agent is created independently via `vb create` and gets its own `VB_API_KEY
 **What:** Added POST /api/telemetry (batch) and POST /api/telemetry/event (single) to src/backend/main.py. Frontend can now report LiveKit room events (transcript turns, client actions like session_context/end_simulation/feedback_data, and session lifecycle events) to the backend, which creates OpenTelemetry spans that appear in Aspire traces.
 **Why:** Conversation events happen directly between the browser and Vocal Bridge via LiveKit — they never touch our backend. Without this endpoint, the entire voice conversation is invisible in Aspire. Now the frontend can POST events as they happen, and they show up as traced spans alongside our existing backend traces.
 **Validation:** event_type must be one of: client_action, transcript_turn, session_lifecycle. Unknown types return 422.
+
+## Merged Decisions (2026-03-26T000000Z)
+
+### 2026-03-25: Enable OTLP/HTTP endpoint for browser telemetry
+**By:** Browning (Build & Infrastructure)
+**What:** Added `ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL` to launchSettings.json (port 21265/19071). Injected `OTEL_EXPORTER_OTLP_HTTP_ENDPOINT` to frontend resource in Program.cs. Backend continues using auto-injected gRPC vars. No manual CORS needed.
+**Why:** Aspire dashboard only exposes OTLP gRPC by default. Browser OTel SDK sends HTTP protobuf/JSON, which gets 403 on the gRPC endpoint. The HTTP endpoint enables browser → Aspire trace flow.
+
+### 2026-03-25: Client telemetry moved from Python backend to Node.js frontend
+**By:** Eames (Frontend Dev)
+**What:** Replaced the custom `/api/telemetry/event` REST proxy approach (browser → Node proxy → Python backend → OTel) with native OpenTelemetry on the Node.js frontend server (browser → Node `/telemetry` → Aspire OTLP collector directly). The frontend server already receives `OTEL_*` env vars from Aspire, so it's the natural owner of client telemetry spans.
+**Why:** Eliminates an unnecessary network hop through the Python backend for telemetry. The Node.js server is the first server-side process that receives browser events — it should own the span creation.
+
+### 2026-03-25: Frontend telemetry payload summaries + client action ordering fix
+**By:** Eames (Frontend Dev)
+**What:** `reportTelemetry` for `feedback_data` now includes `overall_score`, `scores_count`, `improvement_areas_count`, `has_coaching_dialogue`. For `transcript_data`, includes `transcript_count`. Added 100ms delivery delay for ordering reliability.
+**Why:** Client action spans had no payload data to inspect, and both actions arrived at the same millisecond risking out-of-order processing.
+
+### 2026-03-25: Removed client telemetry relay from Python backend
+**By:** Yusuf
+**What:** Deleted all browser-facing telemetry code from `src/backend/main.py`: `TELEMETRY_DEBUG`, `VALID_EVENT_TYPES`, telemetry models, phase inference, and `/api/telemetry` + `/api/telemetry/event` endpoints.
+**Why:** Client telemetry moved to the Node.js frontend server. Backend no longer needs to proxy browser events.
+
+### 2026-03-26: Telemetry Architecture — Span Events Over Logs, Structured Phase API
+**By:** Arthur (Lead), synthesizing inputs from Yusuf, Eames, Browning
+**What:**
+1. Browser OTel logs replaced by span events (logs don't reach Aspire dashboard from browser).
+2. LoggerProvider + OTLPLogExporter removed from browser bundle (saves ~15KB).
+3. New frontend API: `startPhase()` → `PhaseContext` with `createChildSpan()`, `addEvent()`, `end()`.
+4. Conversation turns are span events on a long-lived `conversation` span.
+5. Client actions that wrap real work stay as spans; point-in-time actions become span events.
+6. New `room_connect` span covering getUserMedia() + room.connect().
+7. `coaching.iteration` attribute for restart tracking.
+8. Standardized attribute names across frontend and backend.
+9. Backend additions: `agent.id` on `vb_token_request`, `scenario.id` on `create_coaching_session`, span around VB CLI calls, `session.phase` on all backend spans.
+**Why:** Browser logs invisible in Aspire (confirmed by Browning). Organic growth of three telemetry mechanisms was confusing and produced misleading traces. This architecture makes all conversation data visible in Aspire trace detail.
+**Reference:** `docs/telemetry-architecture.md`
 
