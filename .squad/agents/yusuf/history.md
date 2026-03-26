@@ -39,3 +39,9 @@ Tech: Python, TypeScript, Aspire toolkit, OpenTelemetry, Azure App Insights, Azu
 - API endpoints (session, coaching-session, transcript, coaching) now accept `trace_session_id` and join the appropriate phase trace. VB token calls and OpenAI calls automatically nest under the parent span context.
 - Removed client telemetry relay from backend (TELEMETRY_DEBUG flag, TelemetryEvent/TelemetryBatch models, VALID_EVENT_TYPES, _infer_phase, _record_telemetry_event, /api/telemetry endpoints). Frontend now owns its own OTel spans via Node.js SDK. Backend OTel setup (_setup_otel, tracer, TracerProvider) and session-scoped tracing (_session_contexts, _get_or_create_session_context) remain intact for business endpoint traces.
 - Removed `api/telemetry` from FastAPIInstrumentor excluded_urls since the route no longer exists.
+- Telemetry attribute additions per docs/telemetry-architecture.md §6:
+  - `_get_vb_token` now accepts `agent_id` param; `vb_token_request` span has `agent.id` attribute. Callers pass `_sim_agent_id` or `_coach_agent_id`.
+  - `create_coaching_session` span now has `scenario.id` attribute (from `req.scenario_id`).
+  - `_run_vb` now wrapped in `vb_cli` span with `vb.command` attribute and error status on failure.
+  - `session.phase` added to: `create_session` ("simulation"), `store_transcript` ("simulation"), `get_coaching` ("feedback"), `create_coaching_session` ("coaching").
+  - `/api/scenarios` skipped for `session.id` — no session exists at that point.

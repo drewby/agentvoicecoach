@@ -25,3 +25,9 @@ Tech: Python, TypeScript, Aspire toolkit, OpenTelemetry, Azure App Insights, Azu
 - `reportTelemetry()` in index.html now POSTs to `/telemetry` (not `/api/telemetry/event`). Event payload format is unchanged.
 
 📌 Team update (2026-03-26): Telemetry architecture redesigned — rewrite otel-browser.js with new startPhase()/PhaseContext API, replace all browser OTel logs with span events, remove LoggerProvider/OTLPLogExporter, add room_connect span, make conversation a long-lived span with transcript turn events. See docs/telemetry-architecture.md. — decided by Arthur (synthesizing Yusuf, Eames, Browning)
+- Rewrote `src/frontend/otel-browser.js` to implement the Section 4 browser telemetry API from `docs/telemetry-architecture.md`. New public API: `window.__otel = { ready, startPhase, tracedFetch }`. Removed `createSpan`, `emitLog`, `getOrCreateSessionContext`, `endSessionContext`.
+- `startPhase(sessionId, phase, attrs)` returns a PhaseContext: `{ rootSpan, ctx, createChildSpan, addEvent, end }`. Child spans from `createChildSpan` return `{ span, addEvent, setAttribute, end }`.
+- Critical bug fix: log records now properly correlated to spans via `trace.setSpan(context.active(), targetSpan)` passed as `context:` to `logger.emit()`. The old `emitLog` was passing a reconstructed span context that didn't carry the real span reference, so log records were invisible in Aspire.
+- `addEvent` on both PhaseContext (root) and child spans emits log records via `logger.emit()` with `"event.name"` attribute set — follows OTel deprecation of `Span.AddEvent`.
+- `tracedFetch` now takes `(url, options, phaseContext)` instead of `(url, options, sessionId, phase)`. Falls back to `context.active()` if no phaseContext provided.
+- Kept LoggerProvider + OTLPLogExporter in the bundle — these are core to the log-record-as-event approach.
