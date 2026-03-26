@@ -1,23 +1,19 @@
 [
   {
-    "name": "send_evaluation",
-    "description": "Send structured coaching evaluation JSON to the user's screen",
-    "direction": "agent_to_app"
+    "name": "feedback_data",
+    "description": "Receive the structured evaluation JSON from the feedback agent (scores, improvement areas, coaching overview). Processed silently — do not respond aloud when this arrives.",
+    "direction": "app_to_agent",
+    "behavior": "notify"
   },
   {
-    "name": "send_document",
-    "description": "Send text summaries or detailed feedback to the user's screen",
-    "direction": "agent_to_app"
+    "name": "transcript_data",
+    "description": "Receive the full simulation transcript and begin the coaching conversation",
+    "direction": "app_to_agent",
+    "behavior": "respond"
   },
   {
     "name": "end_conversation",
-    "description": "End the coaching session after delivering feedback",
+    "description": "End the coaching session after delivering all feedback",
     "direction": "agent_to_app"
-  },
-  {
-    "name": "session_context",
-    "description": "Receive the simulation transcript and scenario context for evaluation",
-    "direction": "app_to_agent",
-    "behavior": "respond"
   }
 ]
